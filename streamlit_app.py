@@ -5,20 +5,28 @@ import ForensikVideo as fv
 
 st.set_page_config(page_title="VIFA-Pro Video Forensics")
 
-log_container = st.empty()
-progress_bar = st.progress(0.0)
-logs = []
-
-def ui_logger(msg: str):
-    logs.append(msg)
-    log_container.text("\n".join(logs[-10:]))
+st.markdown(
+    """
+    <style>
+    .stApp { background-color: #ffffff; color: #0c2d70; }
+    .stButton>button { background-color: #0c6dd6; color: white; }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
 st.title("VIFA-Pro: Sistem Forensik Video")
 
-uploaded_video = st.file_uploader("Video Bukti", type=["mp4","avi","mov","mkv"])
-baseline_video = st.file_uploader("Video Baseline (Opsional)", type=["mp4","avi","mov","mkv"])
-fps = st.number_input("Frame Extraction FPS", min_value=1, value=15, step=1)
-run = st.button("Jalankan Analisis")
+with st.sidebar:
+    st.header("Input Media")
+    uploaded_video = st.file_uploader(
+        "Video Bukti", type=["mp4", "avi", "mov", "mkv"]
+    )
+    baseline_video = st.file_uploader(
+        "Video Baseline (Opsional)", type=["mp4", "avi", "mov", "mkv"]
+    )
+    fps = st.number_input("Frame Extraction FPS", min_value=1, value=15, step=1)
+    run = st.button("Jalankan Analisis")
 
 if run:
     if uploaded_video is None:
@@ -30,52 +38,91 @@ if run:
             with open(sus_path, "wb") as f:
                 f.write(uploaded_video.getbuffer())
 
-            fv.set_progress_callback(ui_logger)
-            progress_bar.progress(0.05)
-
-            baseline_result = None
+            baseline_path = None
             if baseline_video is not None:
-                base_path = tmpdir / baseline_video.name
-                with open(base_path, "wb") as f:
+                baseline_path = tmpdir / baseline_video.name
+                with open(baseline_path, "wb") as f:
                     f.write(baseline_video.getbuffer())
-                ui_logger("Memproses video baseline...")
-                baseline_result = fv.process_video(base_path, tmpdir, int(fps))
-                progress_bar.progress(0.3)
 
-            ui_logger("Memproses video bukti...")
-            result = fv.process_video(sus_path, tmpdir, int(fps))
-            progress_bar.progress(0.5)
+            progress = st.progress(0.0)
 
-            if baseline_result:
-                ui_logger("Analisis komparatif...")
-                fv.analyze_pairwise(baseline_result.frames, result.frames, tmpdir)
-            else:
-                ui_logger("Analisis lanjutan...")
-                fv.synthesize_and_analyze(result.frames, tmpdir)
-            progress_bar.progress(0.7)
+            result = fv.run_tahap_1_pra_pemrosesan(sus_path, tmpdir, int(fps))
+            progress.progress(0.2)
+            baseline_result = None
+            if baseline_path:
+                baseline_result = fv.run_tahap_1_pra_pemrosesan(baseline_path, tmpdir, int(fps))
+                if baseline_result:
+                    fv.run_tahap_2_analisis_temporal(baseline_result)
+            progress.progress(0.4)
 
-            result.localizations = fv.build_localizations(result.frames)
-            total_anom = sum(1 for f in result.frames if f.type.startswith("anomaly"))
-            result.summary = {
-                "total_frames": len(result.frames),
-                "total_anomaly": total_anom,
-                "pct_anomaly": round(total_anom * 100 / len(result.frames), 2) if result.frames else 0,
-            }
-            result.plots = fv.create_plots(result.frames, tmpdir, sus_path.stem)
-            progress_bar.progress(0.85)
-
-            pdf_path = tmpdir / f"laporan_{sus_path.stem}.pdf"
-            fv.write_professional_report(result, pdf_path, baseline_result)
-            progress_bar.progress(1.0)
+            fv.run_tahap_2_analisis_temporal(result, baseline_result)
+            progress.progress(0.6)
+            fv.run_tahap_3_sintesis_bukti(result, tmpdir)
+            progress.progress(0.8)
+            fv.run_tahap_4_visualisasi_dan_penilaian(result, tmpdir)
+            fv.run_tahap_5_pelaporan_dan_validasi(result, tmpdir, baseline_result)
+            progress.progress(1.0)
 
             st.success("Analisis selesai.")
-            st.write("Hash SHA-256:", result.preservation_hash)
-            st.write("Total Bingkai:", result.summary["total_frames"])
-            st.write(
-                "Total Anomali:",
-                result.summary["total_anomaly"],
-                f"({result.summary['pct_anomaly']}%)",
-            )
-            st.image(str(result.plots["temporal"]), caption="Timeline Anomali")
-            with open(pdf_path, "rb") as f:
-                st.download_button("Unduh Laporan PDF", data=f, file_name=pdf_path.name)
+
+            tab1, tab2, tab3, tab4, tab5 = st.tabs([
+                "Tahap 1",
+                "Tahap 2",
+                "Tahap 3",
+                "Tahap 4",
+                "Tahap 5",
+            ])
+
+            with tab1:
+                st.header("Pra-pemrosesan & Ekstraksi Fitur Dasar")
+                st.write("Hash SHA-256:", result.preservation_hash)
+                st.json(result.metadata)
+                if result.frames:
+                    st.image(result.frames[0].img_path, caption="Contoh Frame Pertama")
+
+            with tab2:
+                st.header("Analisis Anomali Temporal & Komparatif")
+                st.write("Total Frame:", len(result.frames))
+                if baseline_result:
+                    st.write("Perbandingan dengan baseline dijalankan.")
+                else:
+                    st.write("Tidak ada video baseline.")
+
+            with tab3:
+                st.header("Sintesis Bukti & Investigasi Mendalam")
+                total_anom = sum(1 for f in result.frames if f.type.startswith("anomaly"))
+                st.write("Total Anomali:", total_anom)
+                if result.localizations:
+                    for loc in result.localizations:
+                        st.subheader(
+                            f"{loc['event'].replace('anomaly_', '').capitalize()} ({loc.get('confidence','N/A')})"
+                        )
+                        st.write(f"Frame {loc['start_frame']} - {loc['end_frame']}")
+                        st.write(loc.get('reasons', ''))
+                        if loc.get('image'):
+                            st.image(loc['image'], caption="Sampel Frame")
+                        if loc.get('ela_path'):
+                            st.image(loc['ela_path'], caption="Analisis ELA")
+                        if loc.get('sift_path'):
+                            st.image(loc['sift_path'], caption="Pencocokan SIFT")
+                        if isinstance(loc.get('metrics'), dict):
+                            st.json(loc['metrics'])
+                else:
+                    st.info("Tidak ditemukan anomali signifikan.")
+
+            with tab4:
+                st.header("Visualisasi & Penilaian Integritas")
+                if result.plots.get("temporal"):
+                    st.image(str(result.plots["temporal"]), caption="Timeline Anomali")
+                if result.plots.get("statistic"):
+                    st.image(str(result.plots["statistic"]), caption="Statistik" )
+
+            with tab5:
+                st.header("Penyusunan Laporan & Validasi Forensik")
+                if result.pdf_report_path and result.pdf_report_path.exists():
+                    with open(result.pdf_report_path, "rb") as f:
+                        st.download_button(
+                            "Unduh Laporan PDF",
+                            data=f,
+                            file_name=result.pdf_report_path.name,
+                        )
