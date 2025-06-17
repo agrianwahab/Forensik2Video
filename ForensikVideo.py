@@ -562,7 +562,10 @@ def write_professional_report(result: AnalysisResult, out_pdf: Path, baseline_re
         if loc.get('ela_path'): visual_evidence.append(PlatypusImage(loc['ela_path'], width=250, height=140)); headers.append("<b>Analisis ELA</b>")
         
         if visual_evidence: story.append(Table([headers, visual_evidence]))
-        if loc.get('sift_path'): story.append(Spacer(1,6)); story.append(PlatypusImage(loc['sift_path'], width=520))
+        if loc.get('sift_path'):
+            story.append(Spacer(1,6))
+            # Scale SIFT artifact image to fit the page while preserving aspect ratio
+            story.append(PlatypusImage(loc['sift_path'], width=520, height=320, kind='proportional'))
 
         story.append(Spacer(1, 18))
 
