@@ -77,45 +77,21 @@ if run:
                 st.header("Pra-pemrosesan & Ekstraksi Fitur Dasar")
                 st.write("Hash SHA-256:", result.preservation_hash)
                 st.json(result.metadata)
-                if result.frames:
-                    st.image(result.frames[0].img_path, caption="Contoh Frame Pertama")
 
             with tab2:
                 st.header("Analisis Anomali Temporal & Komparatif")
                 st.write("Total Frame:", len(result.frames))
-                if baseline_result:
-                    st.write("Perbandingan dengan baseline dijalankan.")
-                else:
-                    st.write("Tidak ada video baseline.")
 
             with tab3:
                 st.header("Sintesis Bukti & Investigasi Mendalam")
                 total_anom = sum(1 for f in result.frames if f.type.startswith("anomaly"))
                 st.write("Total Anomali:", total_anom)
-                if result.localizations:
-                    for loc in result.localizations:
-                        st.subheader(
-                            f"{loc['event'].replace('anomaly_', '').capitalize()} ({loc.get('confidence','N/A')})"
-                        )
-                        st.write(f"Frame {loc['start_frame']} - {loc['end_frame']}")
-                        st.write(loc.get('reasons', ''))
-                        if loc.get('image'):
-                            st.image(loc['image'], caption="Sampel Frame")
-                        if loc.get('ela_path'):
-                            st.image(loc['ela_path'], caption="Analisis ELA")
-                        if loc.get('sift_path'):
-                            st.image(loc['sift_path'], caption="Pencocokan SIFT")
-                        if isinstance(loc.get('metrics'), dict):
-                            st.json(loc['metrics'])
-                else:
-                    st.info("Tidak ditemukan anomali signifikan.")
 
             with tab4:
                 st.header("Visualisasi & Penilaian Integritas")
                 if result.plots.get("temporal"):
                     st.image(str(result.plots["temporal"]), caption="Timeline Anomali")
                 if result.plots.get("statistic"):
-                    st.image(str(result.plots["statistic"]), caption="Statistik" )
 
             with tab5:
                 st.header("Penyusunan Laporan & Validasi Forensik")
