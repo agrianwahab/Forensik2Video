@@ -435,10 +435,12 @@ def create_plots(frames: list[FrameInfo], out_dir: Path, video_name: str) -> dic
             color_map = {"duplication": 'orange', "insertion": 'red', "discontinuity": 'purple', "deletion_event": "blue"}
             colors.append(color_map.get(f.type.split('_')[-1], 'black'))
         else:
-            labels.append(0); colors.append('green')
-            
-    plt.vlines(indices[labels], ymin=0, ymax=[l for l in labels if l > 0], colors=[c for c, l in zip(colors, labels) if l > 0], lw=2)
-    plt.scatter(indices[labels], [l for l in labels if l>0], c=[c for c,l in zip(colors, labels) if l>0])
+            labels.append(0)
+            colors.append('green')
+
+    mask = np.array(labels, dtype=bool)
+    plt.vlines(indices[mask], ymin=0, ymax=np.ones(mask.sum()), colors=np.array(colors)[mask], lw=2)
+    plt.scatter(indices[mask], np.ones(mask.sum()), c=np.array(colors)[mask])
     plt.ylim(-0.1, 1.1); plt.xlabel("Indeks Bingkai"); plt.ylabel("Anomali (1=Ya, 0=Tidak)")
     plt.title(f"Peta Anomali Temporal untuk {video_name}"); plt.grid(True, axis='x', linestyle='--', alpha=0.6)
 
@@ -515,7 +517,7 @@ def write_professional_report(result: AnalysisResult, out_pdf: Path, baseline_re
     t.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,0), colors.darkslategray), ('TEXTCOLOR',(0,0),(-1,0),colors.whitesmoke),
                            ('ALIGN', (0,0), (-1,-1), 'LEFT'), ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
                            ('INNERGRID', (0,0), (-1,-1), 0.25, colors.black), ('BOX', (0,0), (-1,-1), 0.25, colors.black),
-                           ('SPAN', (1,0), (1 if not baseline_result else 2), 0)])) # Correct span logic
+                           ('SPAN', (1,0), (2 if baseline_result else 1, 0))])) # Correct span logic
     story.append(t); story.append(Spacer(1, 18))
     
     story.append(Paragraph("Ringkasan Visual Anomali Temporal", styles['h2']))
