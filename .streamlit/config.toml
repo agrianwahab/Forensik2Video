@@ -1,0 +1,9 @@
+[theme]
+primaryColor="#0D6AB7" # A clear, medium blue
+backgroundColor="#FFFFFF" # Pure White
+secondaryBackgroundColor="#EBF3FB" # A very light, almost white blue, for subtle contrast
+textColor="#0A1729" # Dark blue/near black for text
+font="sans serif"
+
+[runner]
+fastReruns = true
