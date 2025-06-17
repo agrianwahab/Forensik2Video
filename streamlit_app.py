@@ -3,6 +3,8 @@ from pathlib import Path
 import tempfile
 import ForensikVideo as fv
 
+st.set_page_config(page_title="VIFA-Pro Video Forensics")
+
 log_container = st.empty()
 progress_bar = st.progress(0.0)
 logs = []
@@ -11,7 +13,6 @@ def ui_logger(msg: str):
     logs.append(msg)
     log_container.text("\n".join(logs[-10:]))
 
-st.set_page_config(page_title="VIFA-Pro Video Forensics")
 st.title("VIFA-Pro: Sistem Forensik Video")
 
 uploaded_video = st.file_uploader("Video Bukti", type=["mp4","avi","mov","mkv"])
