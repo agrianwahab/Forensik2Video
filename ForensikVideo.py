@@ -80,14 +80,30 @@ CONFIG = {
     "DUPLICATION_SSIM_CONFIRM": 0.95, # SSIM minimal untuk mengkonfirmasi kandidat duplikasi
 }
 
+PROGRESS_CB = None
+
+def set_progress_callback(cb):
+    """Register a callback to receive progress log messages."""
+    global PROGRESS_CB
+    PROGRESS_CB = cb
+
+def log(message: str):
+    """Print and forward log messages."""
+    print(message)
+    if PROGRESS_CB:
+        try:
+            PROGRESS_CB(message)
+        except Exception:
+            pass
+
 def print_stage_banner(stage_name: str, icon: str, description: str):
     """ Mencetak banner yang terstruktur untuk setiap tahap DFRWS. """
     width = 80
-    print("\n" + "=" * width)
-    print(f"=== {icon}  TAHAP DFRWS: {stage_name.upper()} ".ljust(width - 3) + "===")
-    print("=" * width)
-    print(f"{Icons.INFO}  {description}")
-    print("-" * width)
+    log("\n" + "=" * width)
+    log(f"=== {icon}  TAHAP DFRWS: {stage_name.upper()} ".ljust(width - 3) + "===")
+    log("=" * width)
+    log(f"{Icons.INFO}  {description}")
+    log("-" * width)
 
 ###############################################################################
 # Struktur Data Inti (Dataclasses)
@@ -156,7 +172,7 @@ def perform_ela(image_path: Path, quality: int = 90) -> Path | None:
         ela_im.save(out_path)
         return out_path
     except Exception as e:
-        print(f"  {Icons.ERROR} Gagal ELA pada {image_path.name}: {e}", file=sys.stderr)
+        log(f"  {Icons.ERROR} Gagal ELA pada {image_path.name}: {e}")
         return None
 
 def compare_sift(img_path1: Path, img_path2: Path, out_dir: Path) -> tuple[int, Path | None]:
@@ -195,10 +211,10 @@ def compare_sift(img_path1: Path, img_path2: Path, out_dir: Path) -> tuple[int, 
         
         return len(good_matches), None
     except cv2.error as e:
-         print(f"  {Icons.ERROR} Error OpenCV SIFT pada {img_path1.name}: {e}", file=sys.stderr)
+         log(f"  {Icons.ERROR} Error OpenCV SIFT pada {img_path1.name}: {e}")
          return 0, None
     except Exception as e:
-        print(f"  {Icons.ERROR} Gagal SIFT umum: {e}", file=sys.stderr)
+        log(f"  {Icons.ERROR} Gagal SIFT umum: {e}")
         return 0, None
 
 
@@ -233,7 +249,7 @@ def calculate_sha256(file_path: Path) -> str:
                 sha256_hash.update(byte_block)
         return sha256_hash.hexdigest()
     except IOError as e:
-        print(f"{Icons.ERROR} Gagal membaca file untuk hashing: {e}", file=sys.stderr)
+        log(f"{Icons.ERROR} Gagal membaca file untuk hashing: {e}")
         return "error"
 
 def ffprobe_metadata(video_path: Path) -> dict:
@@ -243,10 +259,10 @@ def ffprobe_metadata(video_path: Path) -> dict:
         result = subprocess.run(cmd, capture_output=True, text=True, check=True, encoding='utf-8')
         return json.loads(result.stdout)
     except (subprocess.CalledProcessError, FileNotFoundError):
-        print(f"{Icons.ERROR} Gagal menjalankan ffprobe. Pastikan ffmpeg terinstal dan ada di PATH sistem Anda.", file=sys.stderr)
+        log(f"{Icons.ERROR} Gagal menjalankan ffprobe. Pastikan ffmpeg terinstal dan ada di PATH sistem Anda.")
         sys.exit(1)
     except json.JSONDecodeError:
-        print(f"{Icons.ERROR} Gagal mem-parsing output JSON dari ffprobe.", file=sys.stderr)
+        log(f"{Icons.ERROR} Gagal mem-parsing output JSON dari ffprobe.")
         return {"error": "parse_failed"}
 
 def extract_frames(video_path: Path, out_dir: Path, fps: int) -> int:
@@ -259,7 +275,7 @@ def extract_frames(video_path: Path, out_dir: Path, fps: int) -> int:
         return len(list(out_dir.glob('*.jpg')))
     except subprocess.CalledProcessError as e:
         error_msg = e.stderr.decode() if e.stderr else "Unknown ffmpeg error."
-        print(f"{Icons.ERROR} ffmpeg gagal mengekstrak frame. Pesan error:\n{error_msg}", file=sys.stderr)
+        log(f"{Icons.ERROR} ffmpeg gagal mengekstrak frame. Pesan error:\n{error_msg}")
         sys.exit(1)
 
 def compute_initial_metrics(frames: list[FrameInfo]):
@@ -280,7 +296,7 @@ def compute_initial_metrics(frames: list[FrameInfo]):
                     f.ssim_to_prev = score
             prev_gray = current_gray
         except Exception as e:
-            print(f"  {Icons.ERROR} Gagal menghitung metrik untuk frame {f.index}: {e}")
+            log(f"  {Icons.ERROR} Gagal menghitung metrik untuk frame {f.index}: {e}")
 
 def analyze_optical_flow(frames: list[FrameInfo]) -> list[tuple[int, float]]:
     """ Menganalisis diskontinuitas aliran optik. """
@@ -350,7 +366,7 @@ def synthesize_and_analyze(frames: list[FrameInfo], out_dir: Path):
         if f.hash:
             hash_map[f.hash].append(f.index)
     
-    print(f"  {Icons.INFO} Memverifikasi kandidat duplikasi (jika ada)...")
+    log(f"  {Icons.INFO} Memverifikasi kandidat duplikasi (jika ada)...")
     for h, idxs in tqdm(hash_map.items(), desc="    Memverifikasi Duplikasi", leave=False):
         if len(idxs) > 1:
             for i in range(len(idxs) - 1):
@@ -378,7 +394,7 @@ def synthesize_and_analyze(frames: list[FrameInfo], out_dir: Path):
                         f_dup.evidence_obj.sift_path = str(sift_path) if sift_path else None
 
     # 4. Finalisasi: Skor Kepercayaan dan Analisis ELA Pemicu
-    print(f"  {Icons.INFO} Mensintesis bukti & menjalankan analisis spasial (ELA)...")
+    log(f"  {Icons.INFO} Mensintesis bukti & menjalankan analisis spasial (ELA)...")
     for f in tqdm(frames, desc="    Finalisasi & ELA", leave=False):
         if f.evidence_obj and f.evidence_obj.reasons:
             if f.type == "original": f.type = "anomaly_discontinuity"
@@ -403,7 +419,7 @@ def synthesize_and_analyze(frames: list[FrameInfo], out_dir: Path):
 
 def analyze_pairwise(base_frames: list[FrameInfo], sus_frames: list[FrameInfo], out_dir: Path):
     """ Menganalisis penghapusan (deletion) dan penyisipan (insertion) secara komparatif. """
-    print(f"  {Icons.INFO} Melakukan analisis komparatif dengan baseline...")
+    log(f"  {Icons.INFO} Melakukan analisis komparatif dengan baseline...")
     base_hashes = {f.hash for f in base_frames if f.hash}
 
     for f_sus in sus_frames:
@@ -559,17 +575,17 @@ def write_professional_report(result: AnalysisResult, out_pdf: Path, baseline_re
 def process_video(video_path: Path, out_dir: Path, fps: int) -> AnalysisResult:
     """ Melakukan seluruh pipeline analisis untuk satu video. """
     vid_stem = video_path.stem
-    print(f"\n{'='*25} MEMPROSES: {video_path.name} {'='*25}")
+    log(f"\n{'='*25} MEMPROSES: {video_path.name} {'='*25}")
     
     print_stage_banner("Identifikasi & Preservasi", Icons.IDENTIFICATION, f"Memverifikasi & menghash {video_path.name}")
     preservation_hash = calculate_sha256(video_path)
-    print(f"  -> Hash SHA-256: {preservation_hash}")
+    log(f"  -> Hash SHA-256: {preservation_hash}")
     
     print_stage_banner("Koleksi", Icons.COLLECTION, f"Mengekstrak metadata & bingkai pada {fps} FPS.")
     metadata = ffprobe_metadata(video_path)
     frames_dir = out_dir / f"frames_{vid_stem}"
     num_frames = extract_frames(video_path, frames_dir, fps)
-    print(f"  {Icons.SUCCESS} {num_frames} bingkai diekstrak ke '{frames_dir}'")
+    log(f"  {Icons.SUCCESS} {num_frames} bingkai diekstrak ke '{frames_dir}'")
     
     print_stage_banner("Pemeriksaan", Icons.EXAMINATION, "Menghitung metrik awal untuk setiap frame.")
     frame_files = sorted(frames_dir.glob("frame_*.jpg"))
@@ -577,7 +593,7 @@ def process_video(video_path: Path, out_dir: Path, fps: int) -> AnalysisResult:
     
     compute_initial_metrics(frames)
     
-    print(f"  {Icons.INFO} Menganalisis layout warna frame...")
+    log(f"  {Icons.INFO} Menganalisis layout warna frame...")
     color_labels = analyze_color_layout(frames, CONFIG["KMEANS_CLUSTERS"])
     for f, label in zip(frames, color_labels):
         f.color_cluster = label
@@ -599,15 +615,17 @@ def main():
     
     baseline_result = None
     if args.baseline:
-        if len(args.videos) > 1: print(f"{Icons.ERROR} Mode perbandingan hanya mendukung satu video suspek."), sys.exit(1)
+        if len(args.videos) > 1: log(f"{Icons.ERROR} Mode perbandingan hanya mendukung satu video suspek.") or sys.exit(1)
         baseline_path = Path(args.baseline)
-        if not baseline_path.exists(): print(f"{Icons.ERROR} File baseline tidak ditemukan: {baseline_path}"), sys.exit(1)
+        if not baseline_path.exists(): log(f"{Icons.ERROR} File baseline tidak ditemukan: {baseline_path}") or sys.exit(1)
         baseline_result = process_video(baseline_path, out_dir, args.fps)
 
     suspect_results = []
     for vid_str in args.videos:
         video_path = Path(vid_str)
-        if not video_path.exists(): print(f"{Icons.ERROR} File video tidak ditemukan: {video_path}"); continue
+        if not video_path.exists():
+            log(f"{Icons.ERROR} File video tidak ditemukan: {video_path}")
+            continue
         suspect_results.append(process_video(video_path, out_dir, args.fps))
 
     print_stage_banner("Analisis Inti", Icons.ANALYSIS, "Menerapkan logika deteksi dan sintesis bukti.")
@@ -627,18 +645,21 @@ def main():
     for result in suspect_results:
         video_stem = Path(result.video_path).stem
         pdf_path = out_dir / f"laporan_{video_stem}.pdf"
-        print(f"  {Icons.INFO} Membuat laporan PDF untuk '{video_stem}'...")
+        log(f"  {Icons.INFO} Membuat laporan PDF untuk '{video_stem}'...")
         write_professional_report(result, pdf_path, baseline_result)
-        print(f"  {Icons.SUCCESS} Laporan PDF disimpan ke: {pdf_path}")
+        log(f"  {Icons.SUCCESS} Laporan PDF disimpan ke: {pdf_path}")
     
     if not args.no_cleanup:
-        print("\n" + "-"*35 + " PEMBERSIHAN " + "-"*35)
+        log("\n" + "-"*35 + " PEMBERSIHAN " + "-"*35)
         for d in out_dir.glob("frames_*"):
             if d.is_dir():
-                try: shutil.rmtree(d); print(f"  {Icons.SUCCESS} Direktori sementara '{d}' dihapus.")
-                except OSError as e: print(f"  {Icons.ERROR} Gagal menghapus direktori '{d}': {e}")
+                try:
+                    shutil.rmtree(d)
+                    log(f"  {Icons.SUCCESS} Direktori sementara '{d}' dihapus.")
+                except OSError as e:
+                    log(f"  {Icons.ERROR} Gagal menghapus direktori '{d}': {e}")
     
-    print(f"\n{Icons.SUCCESS} PROSES FORENSIK SELESAI. Hasil disimpan di '{out_dir.resolve()}'")
+    log(f"\n{Icons.SUCCESS} PROSES FORENSIK SELESAI. Hasil disimpan di '{out_dir.resolve()}'")
 
 if __name__ == "__main__":
     main()

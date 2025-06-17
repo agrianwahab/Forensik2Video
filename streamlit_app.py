@@ -3,6 +3,14 @@ from pathlib import Path
 import tempfile
 import ForensikVideo as fv
 
+log_container = st.empty()
+progress_bar = st.progress(0.0)
+logs = []
+
+def ui_logger(msg: str):
+    logs.append(msg)
+    log_container.text("\n".join(logs[-10:]))
+
 st.set_page_config(page_title="VIFA-Pro Video Forensics")
 st.title("VIFA-Pro: Sistem Forensik Video")
 
@@ -21,18 +29,29 @@ if run:
             with open(sus_path, "wb") as f:
                 f.write(uploaded_video.getbuffer())
 
+            fv.set_progress_callback(ui_logger)
+            progress_bar.progress(0.05)
+
             baseline_result = None
             if baseline_video is not None:
                 base_path = tmpdir / baseline_video.name
                 with open(base_path, "wb") as f:
                     f.write(baseline_video.getbuffer())
+                ui_logger("Memproses video baseline...")
                 baseline_result = fv.process_video(base_path, tmpdir, int(fps))
+                progress_bar.progress(0.3)
 
+            ui_logger("Memproses video bukti...")
             result = fv.process_video(sus_path, tmpdir, int(fps))
+            progress_bar.progress(0.5)
+
             if baseline_result:
+                ui_logger("Analisis komparatif...")
                 fv.analyze_pairwise(baseline_result.frames, result.frames, tmpdir)
             else:
+                ui_logger("Analisis lanjutan...")
                 fv.synthesize_and_analyze(result.frames, tmpdir)
+            progress_bar.progress(0.7)
 
             result.localizations = fv.build_localizations(result.frames)
             total_anom = sum(1 for f in result.frames if f.type.startswith("anomaly"))
@@ -42,9 +61,11 @@ if run:
                 "pct_anomaly": round(total_anom * 100 / len(result.frames), 2) if result.frames else 0,
             }
             result.plots = fv.create_plots(result.frames, tmpdir, sus_path.stem)
+            progress_bar.progress(0.85)
 
             pdf_path = tmpdir / f"laporan_{sus_path.stem}.pdf"
             fv.write_professional_report(result, pdf_path, baseline_result)
+            progress_bar.progress(1.0)
 
             st.success("Analisis selesai.")
             st.write("Hash SHA-256:", result.preservation_hash)
