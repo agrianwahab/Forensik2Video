@@ -17,10 +17,16 @@ st.markdown(
 
 st.title("VIFA-Pro: Sistem Forensik Video")
 
-uploaded_video = st.file_uploader("Video Bukti", type=["mp4","avi","mov","mkv"])
-baseline_video = st.file_uploader("Video Baseline (Opsional)", type=["mp4","avi","mov","mkv"])
-fps = st.number_input("Frame Extraction FPS", min_value=1, value=15, step=1)
-run = st.button("Jalankan Analisis")
+with st.sidebar:
+    st.header("Input Media")
+    uploaded_video = st.file_uploader(
+        "Video Bukti", type=["mp4", "avi", "mov", "mkv"]
+    )
+    baseline_video = st.file_uploader(
+        "Video Baseline (Opsional)", type=["mp4", "avi", "mov", "mkv"]
+    )
+    fps = st.number_input("Frame Extraction FPS", min_value=1, value=15, step=1)
+    run = st.button("Jalankan Analisis")
 
 if run:
     if uploaded_video is None:
@@ -86,7 +92,6 @@ if run:
                 if result.plots.get("temporal"):
                     st.image(str(result.plots["temporal"]), caption="Timeline Anomali")
                 if result.plots.get("statistic"):
-                    st.image(str(result.plots["statistic"]), caption="Statistik")
 
             with tab5:
                 st.header("Penyusunan Laporan & Validasi Forensik")
