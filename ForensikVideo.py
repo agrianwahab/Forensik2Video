@@ -517,7 +517,7 @@ def write_professional_report(result: AnalysisResult, out_pdf: Path, baseline_re
     t.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,0), colors.darkslategray), ('TEXTCOLOR',(0,0),(-1,0),colors.whitesmoke),
                            ('ALIGN', (0,0), (-1,-1), 'LEFT'), ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
                            ('INNERGRID', (0,0), (-1,-1), 0.25, colors.black), ('BOX', (0,0), (-1,-1), 0.25, colors.black),
-                           ('SPAN', (1,0), (1 if not baseline_result else 2), 0)])) # Correct span logic
+                           ('SPAN', (1,0), (2 if baseline_result else 1, 0))])) # Correct span logic
     story.append(t); story.append(Spacer(1, 18))
     
     story.append(Paragraph("Ringkasan Visual Anomali Temporal", styles['h2']))
